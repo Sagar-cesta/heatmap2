@@ -58,12 +58,11 @@ if section == "Home":
         - 📦 **Drug Category** (Gel, Injection, Patch, etc.)  
         - 💰 **Negotiated Rate Type** (Fixed, Percentage, etc.)
 
-        
         👉 Use the sidebar to explore the full analytics.
     """)
     st.markdown("---")
 
-# --- TOTAL TESTOSTERONE RECORDS ---
+# --- HEATMAP OVERVIEW ---
 elif section == "Heatmap Overview":
     conn = get_connection()
     cur = conn.cursor()
@@ -79,9 +78,6 @@ elif section == "Heatmap Overview":
     df = df.dropna(subset=["STATE_CODE"])
 
     st.title("📊 Total Testosterone Records Across the U.S.")
-    st.markdown("""
-    This heatmap shows how many testosterone-related entries we’ve collected in each U.S. state.
-    """)
     fig = px.choropleth(
         df,
         locations="STATE_CODE",
@@ -93,6 +89,7 @@ elif section == "Heatmap Overview":
         color_continuous_scale="Turbo",
         title="📍 Total Testosterone-Related Entries by State"
     )
+    fig.update_layout(coloraxis_colorbar=dict(title="🧬 Entries"))
     st.plotly_chart(fig, use_container_width=True)
 
 # --- CATEGORY ANALYTICS ---
@@ -107,7 +104,6 @@ elif section == "Category Analytics":
         GROUP BY STATE, CATEGORY
     """)
     cat_data = pd.DataFrame(cur.fetchall(), columns=["STATE", "CATEGORY", "CATEGORY_COUNT"])
-
     state_summary = cat_data.groupby("STATE")["CATEGORY_COUNT"].sum().reset_index()
     state_summary["STATE_CODE"] = state_summary["STATE"].map(us_state_abbr)
     state_summary = state_summary.dropna(subset=["STATE_CODE"])
@@ -118,12 +114,13 @@ elif section == "Category Analytics":
         locations="STATE_CODE",
         locationmode="USA-states",
         color="CATEGORY_COUNT",
-        color_continuous_scale="Blues",
+        color_continuous_scale="Plasma",
         hover_name="STATE",
         hover_data={"STATE_CODE": False, "CATEGORY_COUNT": True},
         scope="usa",
-        title="📍 Total Category Subscriptions by State"
+        title="<b>📦 Total Category Subscriptions by State</b>"
     )
+    fig.update_layout(coloraxis_colorbar=dict(title="🔢 Categories"))
     st.plotly_chart(fig, use_container_width=True)
 
     states = pd.read_sql("SELECT DISTINCT STATE FROM ALL_STATE_COMBINED WHERE STATE IS NOT NULL ORDER BY STATE", conn)
@@ -154,7 +151,6 @@ elif section == "Negotiated Type Breakdown":
     """)
     type_df = pd.DataFrame(cur.fetchall(), columns=["STATE", "CATEGORY", "NEGOTIATED_TYPE", "TYPE_COUNT"])
 
-    # Pivot for hover info
     hover_info = type_df.pivot_table(
         index="STATE",
         columns="NEGOTIATED_TYPE",
@@ -162,36 +158,32 @@ elif section == "Negotiated Type Breakdown":
         aggfunc="sum"
     ).fillna(0).astype(int).reset_index()
 
-    # Add total column
     hover_info["TOTAL_NEGOTIATED_TYPE"] = hover_info.drop("STATE", axis=1).sum(axis=1)
-
-    # Map state codes
     hover_info["STATE_CODE"] = hover_info["STATE"].map(us_state_abbr)
     hover_info = hover_info.dropna(subset=["STATE_CODE"])
 
-    # Plot
     st.title("💰 Negotiated Type Breakdown")
     fig = px.choropleth(
         hover_info,
         locations="STATE_CODE",
         locationmode="USA-states",
         color="TOTAL_NEGOTIATED_TYPE",
+        color_continuous_scale="Cividis",
         scope="usa",
-        color_continuous_scale="Purples",
         hover_name="STATE",
         hover_data={
             "STATE_CODE": False,
             "TOTAL_NEGOTIATED_TYPE": True,
-            "derived": True if "derived" in hover_info.columns else False,
-            "negotiated": True if "negotiated" in hover_info.columns else False,
-            "percentage": True if "percentage" in hover_info.columns else False,
-            "per diem": True if "per diem" in hover_info.columns else False
+            "derived": "derived" in hover_info.columns,
+            "negotiated": "negotiated" in hover_info.columns,
+            "percentage": "percentage" in hover_info.columns,
+            "per diem": "per diem" in hover_info.columns
         },
-        title="📍 Total NEGOTIATED_TYPE Entries by State"
+        title="<b>📍 Total NEGOTIATED_TYPE Entries by State</b>"
     )
+    fig.update_layout(coloraxis_colorbar=dict(title="🧾 Entry Types"))
     st.plotly_chart(fig, use_container_width=True)
 
-    # State selector for detailed breakdown
     states = pd.read_sql("SELECT DISTINCT STATE FROM ALL_STATE_COMBINED WHERE STATE IS NOT NULL ORDER BY STATE", conn)
     selected_state = st.selectbox("Select a state:", states["STATE"])
 
@@ -213,3 +205,4 @@ elif section == "Negotiated Type Breakdown":
     - **per diem**: A daily rate (e.g., $500 per day)  
     - **derived**: Estimated from other values  
     """)
+
